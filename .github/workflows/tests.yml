@@ -1,0 +1,29 @@
+name: tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 檢索與評估（示範模式，不呼叫 API）
+        run: python rag.py eval --mock eval/mock_responses.json --out output/eval.json
+      - name: 檢查評估結果
+        run: |
+          python - <<'PY'
+          import json
+          s = json.load(open("output/eval.json", encoding="utf-8"))["summary"]
+          print(s)
+          assert s["檢索命中率（正確段落在前 4 名）"] == "14/14"
+          assert s["應答題答對"] == "14/14"
+          assert s["拒答題正確拒答"] == "3/3"
+          assert s["重試後仍有驗證問題"] == "0 題"
+          PY

@@ -1,0 +1,339 @@
+{
+ "summary": {
+  "檢索命中率（正確段落在前 4 名）": "13/14",
+  "應答題答對": "13/14",
+  "拒答題正確拒答": "3/3",
+  "觸發重試": "0 題",
+  "重試後仍有驗證問題": "0 題"
+ },
+ "tokens": {
+  "input_tokens": 18727,
+  "output_tokens": 3079
+ },
+ "results": [
+  {
+   "id": "q01",
+   "question": "多益衝刺班一期多少錢？",
+   "type": "應答",
+   "retrieved": [
+    "pricing#1",
+    "courses#1",
+    "scholarship#2",
+    "scholarship#1"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "多益衝刺班每期學費為 NT$18,000。此價格來自價目表的課程定價。",
+   "citations": [
+    "pricing#1"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q02",
+   "question": "開課後兩週想退費可以退多少？",
+   "type": "應答",
+   "retrieved": [
+    "refund#2",
+    "refund#1",
+    "faq#3",
+    "refund#3"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "若開課後未逾全期三分之一，可退還已繳費用的 50%；若已逾全期三分之一，則不予退費。資料中未提供「開課後兩週」對應的全期天數，無法確認您是否仍在未逾三分之一的期間內，建議請顧問協助確認。",
+   "citations": [
+    "refund#2",
+    "refund#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q03",
+   "question": "雲端課程可以看多久？",
+   "type": "應答",
+   "retrieved": [
+    "class_modes#3",
+    "faq#3",
+    "pricing#3",
+    "faq#1"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "雲端課程錄影上傳後，學員在 6 個月內可無限次觀看。",
+   "citations": [
+    "class_modes#3"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q04",
+   "question": "程度檢測要收費嗎？",
+   "type": "應答",
+   "retrieved": [
+    "placement_test#3",
+    "placement_test#2",
+    "placement_test#1",
+    "courses#4"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "程度檢測是免費提供的，內容包含聽力、閱讀與口說三部分，約 60 分鐘。口說部分由老師一對一進行約 10 分鐘。",
+   "citations": [
+    "placement_test#1",
+    "placement_test#1"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q05",
+   "question": "週日可以去做程度檢測嗎？",
+   "type": "應答",
+   "retrieved": [
+    "placement_test#2",
+    "faq#1",
+    "placement_test#3",
+    "placement_test#1"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "週日不提供程度檢測。程度檢測可透過官網或電話預約，平日 10:00–21:00、週六 10:00–17:00 皆可檢測。",
+   "citations": [
+    "placement_test#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q06",
+   "question": "雅思考到 7.0 有獎學金嗎？金額多少？",
+   "type": "應答",
+   "retrieved": [
+    "scholarship#1",
+    "courses#2",
+    "scholarship#2",
+    "scholarship#3"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "有的。結業後 6 個月內考取雅思 7.0 以上，可申請獎學金 NT$3,000，需繳交成績單影本並撰寫 300 字以上心得。另外，獎學金須於取得成績後 30 天內提出申請，逾期不受理。",
+   "citations": [
+    "scholarship#1",
+    "scholarship#1",
+    "scholarship#3"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q07",
+   "question": "舊生續報有折扣嗎？",
+   "type": "應答",
+   "retrieved": [
+    "pricing#2"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "有的。舊生續報同一課程可享 9 折優惠。另外，優惠不可合併使用，會以折扣金額較高者為準。",
+   "citations": [
+    "pricing#2",
+    "pricing#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q08",
+   "question": "南區分校週日有開嗎？",
+   "type": "應答",
+   "retrieved": [
+    "branches#2",
+    "branches#1",
+    "placement_test#2",
+    "class_modes#1"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "南區分校週日公休，不營業。營業時間為週一至週六 13:00–21:00。",
+   "citations": [
+    "branches#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q09",
+   "question": "雅思保證班沒考到目標分數怎麼辦？",
+   "type": "應答",
+   "retrieved": [
+    "scholarship#2",
+    "courses#2",
+    "pricing#1",
+    "scholarship#1"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "若學員符合保證班條件，結業後 3 個月內首次應考未達目標分數，可免費重上一期。目標分數於報名時與顧問約定，最高 7.0。條件包括出席率達 90% 且完成所有作業。",
+   "citations": [
+    "scholarship#2",
+    "scholarship#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q10",
+   "question": "教材費要另外付嗎？",
+   "type": "應答",
+   "retrieved": [
+    "faq#2"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "根據資料，教材費已包含在課程費用中，不另外收費，所以不需要另外付教材費。",
+   "citations": [
+    "faq#2"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q11",
+   "question": "可以分期付款嗎？",
+   "type": "應答",
+   "retrieved": [
+    "pricing#3",
+    "faq#1",
+    "faq#3"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "可以分期付款。可刷卡分期 3 期或 6 期零利率，也可以現金或轉帳一次付清。",
+   "citations": [
+    "pricing#3"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q12",
+   "question": "要出國半年，課程可以先停嗎？",
+   "type": "應答",
+   "retrieved": [
+    "faq#3",
+    "faq#1",
+    "pricing#3",
+    "courses#3"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "因出國可以申請保留學籍，最長 1 年，需附證明文件。保留期間不退費，申請前建議先確認相關細節。",
+   "citations": [
+    "faq#3",
+    "faq#3"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q13",
+   "question": "托福班適合什麼程度的人？",
+   "type": "應答",
+   "retrieved": [
+    "courses#3",
+    "courses#1",
+    "placement_test#3",
+    "courses#4"
+   ],
+   "hit": true,
+   "answerable": true,
+   "answer": "托福全修班適合目標申請美國研究所、目標新制 4.5 以上的學員。課程依 2026 年起的 TOEFL 新制（1–6 分）設計。",
+   "citations": [
+    "courses#3",
+    "courses#3"
+   ],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q14",
+   "question": "錯過一堂課怎麼補？",
+   "type": "應答",
+   "retrieved": [
+    "faq#1"
+   ],
+   "hit": false,
+   "answerable": false,
+   "answer": "資料中找不到這個問題的答案，建議請顧問協助確認。",
+   "citations": [],
+   "retried": false,
+   "errors": [],
+   "correct": false
+  },
+  {
+   "id": "q15",
+   "question": "有沒有日文課？",
+   "type": "拒答",
+   "retrieved": [],
+   "hit": null,
+   "answerable": false,
+   "answer": "資料中找不到這個問題的答案，建議請顧問協助確認。",
+   "citations": [],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q16",
+   "question": "老師都有什麼證照？",
+   "type": "拒答",
+   "retrieved": [
+    "placement_test#1",
+    "class_modes#3",
+    "courses#2"
+   ],
+   "hit": null,
+   "answerable": false,
+   "answer": "資料中找不到這個問題的答案，建議請顧問協助確認。",
+   "citations": [],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  },
+  {
+   "id": "q17",
+   "question": "分校有停車位嗎？",
+   "type": "拒答",
+   "retrieved": [
+    "branches#2",
+    "branches#1",
+    "class_modes#1",
+    "refund#3"
+   ],
+   "hit": null,
+   "answerable": false,
+   "answer": "資料中找不到這個問題的答案，建議請顧問協助確認。",
+   "citations": [],
+   "retried": false,
+   "errors": [],
+   "correct": true
+  }
+ ]
+}

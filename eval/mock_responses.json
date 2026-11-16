@@ -158,9 +158,14 @@
   ]
  },
  "q14": {
-  "answerable": false,
-  "answer": "資料中找不到這個問題的答案，建議請顧問協助確認。",
-  "citations": []
+  "answerable": true,
+  "answer": "缺課可以預約該堂的錄影補課，每期最多 3 次。",
+  "citations": [
+   {
+    "chunk_id": "class_modes#1",
+    "quote": "缺課可預約該堂錄影補課，每期最多 3 次"
+   }
+  ]
  },
  "q16": {
   "answerable": false,

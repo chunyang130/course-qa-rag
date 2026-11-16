@@ -16,7 +16,7 @@
 
 流程：
   1. 切段：知識庫每份文件依「## 小標」切成段落，每段有編號（例：refund#2）
-  2. 檢索：用 BM25 找出和問題最相關的前 4 段（中文以兩字一組切詞）
+  2. 檢索：先用同義詞表把學員說法換成文件用語，再用 BM25 找出最相關的前 4 段（中文以兩字一組切詞）
   3. 生成：只把這 4 段交給 Claude，用 tool use 強制回傳「能否回答、答案、引用」
   4. 驗證：引用的段落必須在檢索結果中、引用原文必須一字不差、答案裡的數字必須出現在引用段落；
            不合格就把錯誤告訴模型重試一次
@@ -81,8 +81,22 @@ class BM25:
         return out
 
 
+# 同義詞擴充：學員的說法 → 文件裡的用詞。關鍵字檢索認不出同義詞，所以在搜尋前補上文件用語
+SYNONYMS = {
+    "錯過": "缺課", "沒去上": "缺課", "請假": "缺課", "補上": "補課",
+    "暫停": "保留學籍", "停課": "保留學籍", "先停": "保留學籍", "休學": "保留學籍",
+    "打折": "優惠 折", "便宜": "優惠", "多少錢": "價 費用", "學費": "價",
+    "幾點": "時間", "開門": "營業時間",
+}
+
+
+def expand(question):
+    extra = [v for k, v in SYNONYMS.items() if k in question]
+    return question + (" " + " ".join(extra) if extra else "")
+
+
 def retrieve(question, chunks, index, k=TOP_K):
-    ranked = sorted(zip(index.scores(question), chunks), key=lambda x: -x[0])
+    ranked = sorted(zip(index.scores(expand(question)), chunks), key=lambda x: -x[0])
     return [dict(c, score=round(s, 2)) for s, c in ranked[:k] if s > 0]
 
 

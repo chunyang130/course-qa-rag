@@ -27,3 +27,5 @@ jobs:
           assert s["拒答題正確拒答"] == "3/3"
           assert s["重試後仍有驗證問題"] == "0 題"
           PY
+      - name: HTTP API 測試（示範模式）
+        run: python test_api.py

@@ -5,7 +5,7 @@
 學員常問的問題（價格、退費、上課方式、獎學金）都寫在補習班的規章裡，但顧問不一定記得最新規定。直接問一般 AI 聊天，它會用「常識」回答，可能跟公司規定不同。
 這個專案做的是 RAG：**先從公司文件找出相關段落，再讓 Claude 只根據這些段落回答，並由程式檢查引用是否屬實**。
 
-只用 Python 標準函式庫（3.9 以上），不需安裝任何套件。知識庫是虛構的「範例美語中心」資料。
+只用 Python 標準函式庫（3.10 以上），不需安裝任何套件。知識庫是虛構的「範例美語中心」資料。
 
 ## 流程
 
@@ -49,6 +49,52 @@ v2 在檢索前加了同義詞表（例如 錯過→缺課、暫停→保留學�
 
 **限制**：同義詞表是看到 q14 答錯後才加的，14/14 有針對這組題目修正的成分。要確認改進是否普遍有效，下一步應該用一組沒看過的新題目再評估一次。
 
+## HTTP API：讓其他系統直接使用
+
+`api.py` 把問答包成 HTTP 服務，每次問答都記錄到 SQLite，再用 SQL 分析使用狀況。只用 Python 內建的 `http.server` 與 `sqlite3`。
+
+```bash
+python api.py --mock eval/mock_responses.json     # 免費示範
+python api.py                                     # 實際呼叫 Claude（需 ANTHROPIC_API_KEY）
+```
+
+| 端點 | 用途 |
+| --- | --- |
+| `GET /health` | 健康檢查 |
+| `GET /search?q=退費&k=4` | 只做檢索，回傳相關段落（不呼叫模型、不花錢） |
+| `POST /ask` | 送出 `{"question": "..."}`，回傳答案、引用段落、驗證結果與耗時 |
+| `GET /stats` | 用 SQL 統計問答紀錄 |
+
+```powershell
+# Windows PowerShell 範例
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -ContentType "application/json; charset=utf-8" `
+  -Body ([System.Text.Encoding]::UTF8.GetBytes('{"question": "多益衝刺班一期多少錢？"}'))
+```
+
+回應：
+
+```json
+{
+  "answerable": true,
+  "answer": "多益衝刺班每期 NT$18,000，每期 12 週。",
+  "citations": [{"chunk_id": "pricing#1", "quote": "多益衝刺班：每期 NT$18,000"}, ...],
+  "retrieved": [{"chunk_id": "pricing#1", "score": 8.5}, ...],
+  "validation_errors": [],
+  "retried": true,
+  "latency_ms": 3
+}
+```
+
+**`/stats` 回答營運上的問題**（SQL 寫在 `api.py` 的 `STATS_SQL`）：
+
+- 總覽：題數、拒答率、觸發重試、驗證未通過、平均耗時、token 用量
+- 最常被問的問題：哪些問題該做成常見問題頁
+- 被拒答的問題：**知識庫可能缺資料**，該補哪些文件
+
+**輸入檢查**：缺少問題、問題超過 300 字、不是 JSON 都回 400；`/ask` 用 GET 回 405；不存在的路徑回 404；模型服務錯誤回 502。
+
+`test_api.py` 以示範模式實際啟動伺服器、送出 HTTP 請求，檢查回應、錯誤碼與資料庫紀錄（15 項）。
+
 ## 執行方式
 
 ```bash
@@ -70,6 +116,8 @@ python rag.py ask "開課後兩週想退費可以退多少？"
 | 檔案 | 內容 |
 | --- | --- |
 | `rag.py` | 切段、BM25 檢索、呼叫 Claude、引用驗證、評估 |
+| `api.py` | HTTP API 與問答紀錄（SQLite） |
+| `test_api.py` | API 的自動測試（15 項） |
 | `knowledge_base/` | 8 份虛構的補習班文件（課程、價目、退費、上課方式、程度檢測、獎學金、分校、常見問題） |
 | `eval/questions.json` | 17 題評估題組，含預期段落與關鍵字 |
 | `eval/mock_responses.json` | 免費示範用的模型回覆（q01 故意寫錯金額，示範數字檢查與重試） |

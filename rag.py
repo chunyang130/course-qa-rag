@@ -15,7 +15,8 @@
   python rag.py eval
 
 流程：
-  1. 切段：知識庫每份文件依「## 小標」切成段落，每段有編號（例：refund#2）
+  1. 切段：知識庫每份文件依「## 小標」切成段落，每段有編號（例：refund#2）；
+           價目表由 sources/pricing.csv 自動產生（見 kb_sources.py）
   2. 檢索：先用同義詞表把學員說法換成文件用語，再用 BM25 找出最相關的前 4 段（中文以兩字一組切詞）
   3. 生成：只把這 4 段交給 Claude，用 tool use 強制回傳「能否回答、答案、引用」
   4. 驗證：引用的段落必須在檢索結果中、引用原文必須一字不差、答案裡的數字必須出現在引用段落；
@@ -25,8 +26,11 @@
 import argparse, glob, json, math, os, re, sys, time, urllib.error, urllib.request
 from collections import Counter
 
+import kb_sources
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 KB_DIR = os.path.join(HERE, "knowledge_base")
+SRC_DIR = os.path.join(HERE, "sources")
 API_URL = "https://api.anthropic.com/v1/messages"
 DEFAULT_MODEL = "claude-haiku-5-5"
 TOP_K = 4
@@ -34,11 +38,23 @@ NOT_FOUND = "資料中找不到這個問題的答案，建議請顧問協助確�
 
 
 # ---------- 1. 切段 ----------
-def load_chunks(kb_dir=KB_DIR):
+def load_docs(kb_dir=KB_DIR, src_dir=SRC_DIR):
+    """知識庫 = 人工撰寫的 knowledge_base/*.md ＋ 由 sources/ 結構化資料產生的文件（例如價目表）。"""
+    docs = {os.path.splitext(os.path.basename(p))[0]: open(p, encoding="utf-8").read()
+            for p in sorted(glob.glob(os.path.join(kb_dir, "*.md")))}
+    generated, errors = kb_sources.generated_docs(src_dir)
+    if errors:
+        raise SystemExit("sources/ 資料有誤，請先修正：\n- " + "\n- ".join(errors))
+    for stem in generated:
+        if stem in docs:
+            raise SystemExit(f"knowledge_base/{stem}.md 與 sources/ 產生的文件同名，請刪除其中一個")
+    docs.update(generated)
+    return dict(sorted(docs.items()))
+
+
+def load_chunks(kb_dir=KB_DIR, src_dir=SRC_DIR):
     chunks = []
-    for path in sorted(glob.glob(os.path.join(kb_dir, "*.md"))):
-        stem = os.path.splitext(os.path.basename(path))[0]
-        text = open(path, encoding="utf-8").read()
+    for stem, text in load_docs(kb_dir, src_dir).items():
         title = re.search(r"^# (.+)$", text, flags=re.M)
         doc_title = re.sub(r"（.*?）", "", title.group(1)).strip() if title else stem
         for i, sec in enumerate(re.split(r"^## ", text, flags=re.M)[1:], 1):

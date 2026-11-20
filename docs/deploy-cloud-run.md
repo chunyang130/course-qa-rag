@@ -82,7 +82,19 @@ gcloud run deploy course-qa-rag --source . --region asia-east1 \
 
 再測一次：`/health` 的 `mode` 會變成模型名稱，`/ask` 可以問知識庫裡的任何問題。
 
-### 5. 用完怎麼關
+### 5.（選用）通過測試後自動部署
+
+設定一次之後，每次推送到 GitHub：測試、知識庫評估閘門、容器測試**全部通過才會自動部署**，任何一項沒過就不上線。
+
+```bash
+cd ~/course-qa-rag && git pull
+bash docs/setup-cd.sh
+```
+
+腳本最後會列出 3 個值，照指示加到 GitHub repo 的 **Settings → Secrets and variables → Actions → Variables**。
+登入方式是 Workload Identity Federation：GitHub 每次執行時向 Google 換取短期憑證，**GitHub 上不存放任何 Google 金鑰**，而且只有這個 repo 能使用。
+
+### 6. 用完怎麼關
 
 ```bash
 gcloud run services delete course-qa-rag --region asia-east1   # 刪除服務

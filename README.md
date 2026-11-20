@@ -121,6 +121,41 @@ docker run -p 8080:8080 -e ANTHROPIC_API_KEY=... course-qa-rag          # 實際
 
 完整步驟（全部在瀏覽器的 Cloud Shell 完成）：[docs/deploy-cloud-run.md](docs/deploy-cloud-run.md)
 
+## 知識庫更新管線：資料檢查 → 評估閘門 → 自動部署
+
+知識庫是 AI 回答的依據，**資料一改，答案就跟著變**。所以資料更新也要像程式一樣先測試、通過才上線。
+
+**1. 業務只維護表格**：價目表放在 `sources/pricing.csv`（課程、價格、計價方式、備註），可以直接用 Excel 編輯。
+程式載入知識庫時由 CSV 產生價目表文件（`kb_sources.py`），表格就是唯一的資料來源，不會發生「改了表格、忘了改文件」。
+
+**2. 推送到 GitHub 後自動檢查**（`pipeline.py`，不呼叫 AI、不花錢）：
+
+| 檢查 | 擋下的情況 |
+| --- | --- |
+| 資料檢查 | 欄位被改名、價格不是數字或超出合理範圍（例：36000 打成 3600）、課程重複、計價方式不是「每期／全年」 |
+| 文件檢查 | 缺標題、空段落、段落超過 500 字（太長會降低檢索準確度） |
+| 和上一版比較 | 列出價格變動與新增／修改／刪除的段落；**價格變動超過 30% 會擋下**，確認無誤要在提交說明寫「確認價格」 |
+| 評估閘門 | 評估題的預期答案已不在資料裡（例：多益改價、評估題沒跟著改）；檢索命中率低於門檻 |
+
+檢查報告會顯示在 GitHub Actions 該次執行的摘要頁，例如改了多益價格但沒更新評估題時：
+
+```
+## ❌ 未通過：不可部署，請依下方說明修正
+### 3. 和上一版比較
+- 內容有修改的段落：`pricing#1`
+### 4. 評估閘門
+- ❌ q01「多益衝刺班一期多少錢？」的預期答案（18,000／18000）已不在 pricing#1；資料改了，評估題與示範回覆要同步更新
+```
+
+**3. 全部通過才自動部署**：單元測試、知識庫評估閘門、容器測試三項都通過，才會建置映像檔並部署到 Cloud Run，部署後再自動檢查網址是否正常。
+登入 Google Cloud 用 Workload Identity Federation，**GitHub 上不存放任何 Google 金鑰**；部署帳戶只有部署需要的最小權限。設定方式見 [docs/deploy-cloud-run.md](docs/deploy-cloud-run.md) 第 5 步。
+
+```bash
+python pipeline.py check                 # 檢查目前的資料
+python pipeline.py preview               # 看由 CSV 產生的價目表文件
+python test_pipeline.py                  # 模擬 9 種改資料的情況，確認該擋的有擋、該放的有放
+```
+
 ## 執行方式
 
 ```bash
@@ -142,12 +177,17 @@ python rag.py ask "開課後兩週想退費可以退多少？"
 | 檔案 | 內容 |
 | --- | --- |
 | `rag.py` | 切段、BM25 檢索、呼叫 Claude、引用驗證、評估 |
+| `pipeline.py` | 知識庫更新管線：資料檢查、變更比對、評估閘門 |
+| `kb_sources.py` | 由 `sources/pricing.csv` 產生價目表文件 |
+| `sources/` | 結構化資料（價目表 CSV）與文件範本 |
+| `test_pipeline.py` | 管線的自動測試（9 種情況） |
+| `docs/setup-cd.sh` | 設定自動部署（在 Cloud Shell 執行一次） |
 | `api.py` | HTTP API 與問答紀錄（SQLite） |
 | `web/index.html` | 問答網頁（不需要任何前端框架） |
 | `test_api.py` | API 的自動測試（20 項） |
 | `Dockerfile` | 容器映像檔 |
 | `docs/deploy-cloud-run.md` | 部署到 Google Cloud Run 的步驟 |
-| `knowledge_base/` | 8 份虛構的補習班文件（課程、價目、退費、上課方式、程度檢測、獎學金、分校、常見問題） |
+| `knowledge_base/` | 7 份虛構的補習班文件（課程、退費、上課方式、程度檢測、獎學金、分校、常見問題）；價目表由 `sources/` 產生 |
 | `eval/questions.json` | 17 題評估題組，含預期段落與關鍵字 |
 | `eval/mock_responses.json` | 免費示範用的模型回覆（q01 故意寫錯金額，示範數字檢查與重試） |
 | `eval/real_runs/` | 兩輪實際呼叫 API 的評估結果 |

@@ -11,8 +11,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ASK_DAILY_LIMIT=50
 
 WORKDIR /app
-COPY rag.py api.py ./
+COPY rag.py api.py kb_sources.py ./
 COPY knowledge_base/ knowledge_base/
+COPY sources/ sources/
 COPY web/ web/
 COPY eval/questions.json eval/mock_responses.json eval/
 

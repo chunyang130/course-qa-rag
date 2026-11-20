@@ -1,0 +1,9 @@
+# 設定（公告欄）：和程式分開管理，改設定不用重新建置映像檔
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: course-qa-rag-config
+data:
+  ASK_DAILY_LIMIT: "50"         # /ask 每天上限（每一份各自計算）
+  DB_PATH: /tmp/qa_log.db       # 問答紀錄放在暫存空間
+  APP_VERSION: v1

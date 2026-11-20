@@ -1,0 +1,9 @@
+# kind：用 Docker 容器模擬 Kubernetes 叢集，給測試與學習用
+# 把叢集節點的 30080 埠對應到本機 8080，讓測試腳本可以從外面連到 Service
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080

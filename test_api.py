@@ -109,7 +109,7 @@ with tempfile.TemporaryDirectory() as d:
         wait_ready()
         code, r = call("GET", "/health")
         check("環境變數 PORT 生效；沒有金鑰自動改用示範模式；每日上限 2 題",
-              code == 200 and r["mode"] == "mock" and r["daily_limit"] == 2, r)
+              code == 200 and r["mode"] == "mock" and r["daily_limit"] == 2 and r["version"] == "dev" and r["host"], r)
         codes = [call("POST", "/ask", {"question": "多益衝刺班一期多少錢？"})[0] for _ in range(3)]
         check("每日上限：前 2 題 200，第 3 題 429", codes == [200, 200, 429], codes)
         code, r = call("GET", "/search?" + urllib.parse.urlencode({"q": "退費"}))

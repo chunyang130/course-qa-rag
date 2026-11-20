@@ -121,6 +121,29 @@ docker run -p 8080:8080 -e ANTHROPIC_API_KEY=... course-qa-rag          # 實際
 
 完整步驟（全部在瀏覽器的 Cloud Shell 完成）：[docs/deploy-cloud-run.md](docs/deploy-cloud-run.md)
 
+## Kubernetes：多份執行、自我修復、零停機更新
+
+`k8s/manifests/` 是 Kubernetes 部署設定；GitHub Actions 每次推送都會用 **kind**（以 Docker 模擬的 Kubernetes 叢集）實際部署並驗證（`k8s/test-k8s.sh`）：
+
+| 驗證項目 | 做法 | 結果要求 |
+| --- | --- | --- |
+| 部署 | 2 份同時執行，健康檢查通過才接流量 | 2 份都就緒 |
+| 負載分配 | 透過 Service 連續送 30 個請求，看 `/health` 回傳的主機名稱 | 2 份都有收到請求 |
+| 自我修復 | 刪掉其中一份 | Kubernetes 自動建立新的一份，恢復成 2 份 |
+| 零停機更新 | 每 0.1 秒送一個請求，同時把版本從 v1 更新到 v2 | 更新完成，**沒有任何請求失敗** |
+
+設定重點：
+
+- **Deployment**：`replicas: 2`；滾動更新 `maxUnavailable: 0`，新的一份就緒才撤掉舊的
+- **健康檢查**：readiness（準備好才接流量）、liveness（卡住自動重啟）都打 `/health`
+- **優雅關閉**：`preStop` 先等 8 秒，讓 Service 停止送新請求後才關閉，這是零停機的關鍵
+- **資源限制**：每份保證 50m CPU／64Mi 記憶體，上限 500m／256Mi
+- **安全**：非 root 執行、程式檔案唯讀（只有 `/tmp` 可寫）、移除所有 Linux 權限
+- **設定與金鑰分離**：設定放 ConfigMap；金鑰從 Secret 讀，沒有 Secret 時自動用示範模式
+
+**限制（多份執行時要注意）**：問答紀錄與每日上限目前存在每一份自己的 SQLite，所以 `/stats` 只看得到該份的紀錄、上限也是各自計算。正式上線要改用共用的資料庫（例如 Cloud SQL）或 Redis。
+目前線上服務部署在 Cloud Run（由 Google 管理叢集）；Kubernetes 設定已在 kind 上驗證，還沒有正式叢集的維運經驗。
+
 ## 知識庫更新管線：資料檢查 → 評估閘門 → 自動部署
 
 知識庫是 AI 回答的依據，**資料一改，答案就跟著變**。所以資料更新也要像程式一樣先測試、通過才上線。
@@ -147,7 +170,7 @@ docker run -p 8080:8080 -e ANTHROPIC_API_KEY=... course-qa-rag          # 實際
 - ❌ q01「多益衝刺班一期多少錢？」的預期答案（18,000／18000）已不在 pricing#1；資料改了，評估題與示範回覆要同步更新
 ```
 
-**3. 全部通過才自動部署**：單元測試、知識庫評估閘門、容器測試三項都通過，才會建置映像檔並部署到 Cloud Run，部署後再自動檢查網址是否正常。
+**3. 全部通過才自動部署**：單元測試、知識庫評估閘門、容器測試、Kubernetes 驗證四項都通過，才會建置映像檔並部署到 Cloud Run，部署後再自動檢查網址是否正常。
 登入 Google Cloud 用 Workload Identity Federation，**GitHub 上不存放任何 Google 金鑰**；部署帳戶只有部署需要的最小權限。設定方式見 [docs/deploy-cloud-run.md](docs/deploy-cloud-run.md) 第 5 步。
 
 ```bash
@@ -182,6 +205,7 @@ python rag.py ask "開課後兩週想退費可以退多少？"
 | `sources/` | 結構化資料（價目表 CSV）與文件範本 |
 | `test_pipeline.py` | 管線的自動測試（9 種情況） |
 | `docs/setup-cd.sh` | 設定自動部署（在 Cloud Shell 執行一次） |
+| `k8s/` | Kubernetes 部署設定、kind 叢集設定與驗證腳本 |
 | `api.py` | HTTP API 與問答紀錄（SQLite） |
 | `web/index.html` | 問答網頁（不需要任何前端框架） |
 | `test_api.py` | API 的自動測試（20 項） |

@@ -10,6 +10,7 @@
 容器與雲端（Docker／Cloud Run）用環境變數設定，參數沒指定時才讀：
   PORT、HOST、DB_PATH      監聽的埠號、位址、問答紀錄資料庫位置
   ASK_DAILY_LIMIT          /ask 每天最多幾題（0 = 不限制），公開網址避免被大量呼叫、產生 API 費用
+  APP_VERSION              版本標記，顯示在 /health
 
 端點：
   GET  /                      問答網頁（輸入問題、看答案與引用）
@@ -19,7 +20,7 @@
   POST /ask   {"question": "..."}   檢索＋生成＋驗證，回傳答案與引用
   GET  /stats                 用 SQL 統計問答紀錄：題數、拒答率、驗證問題、最常被問的問題
 """
-import argparse, json, os, sqlite3, sys, time, urllib.parse
+import argparse, json, os, socket, sqlite3, sys, time, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import rag
@@ -156,7 +157,10 @@ def make_handler(app):
             if url.path == "/health":
                 return self.send_json(200, {"status": "ok", "chunks": len(app.chunks),
                                             "mode": "mock" if app.mock else app.model,
-                                            "daily_limit": app.daily_limit or None})
+                                            "daily_limit": app.daily_limit or None,
+                                            # 版本與主機名稱：多份同時執行時（Kubernetes），看得出是哪一份、哪個版本回應的
+                                            "version": os.environ.get("APP_VERSION", "dev"),
+                                            "host": socket.gethostname()})
             if url.path == "/search":
                 q = (qs.get("q") or [""])[0].strip()
                 if not q:

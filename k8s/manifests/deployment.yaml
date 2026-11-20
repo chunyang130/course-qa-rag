@@ -1,0 +1,82 @@
+# Deployment（排課規定）：隨時維持 2 份在執行；少了自動補、版本更新時一份一份換
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: course-qa-rag
+  labels:
+    app: course-qa-rag
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: course-qa-rag
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0           # 更新時不先停舊的：新的一份準備好，才撤掉一份舊的
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: course-qa-rag
+    spec:
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true        # 不允許用 root 執行
+        runAsUser: 10001
+      containers:
+        - name: api
+          image: course-qa-rag:ci
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: course-qa-rag-config
+          env:
+            # 金鑰（保險箱）：從 Secret 讀；沒有建立 Secret 時自動用示範模式
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: anthropic-api-key
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          # 準備好才接流量：/health 回應正常才把它加入 Service
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          # 卡住就重啟：/health 連續 3 次沒回應，Kubernetes 會重啟這一份
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          # 收到停止訊號後先等幾秒：讓 Service 先停止把新請求送過來，避免更新時請求失敗
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "8"]
+          # 資源（教室容量）：requests 是保證給的量，limits 是上限，避免互相搶資源
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true   # 程式檔案唯讀，只有 /tmp 可以寫
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

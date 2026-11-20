@@ -19,7 +19,8 @@ COPY eval/questions.json eval/mock_responses.json eval/
 
 # 不用 root 執行，降低被入侵時的影響範圍
 RUN useradd --create-home --uid 10001 app
-USER app
+# 用數字 UID：Kubernetes 的 runAsNonRoot 檢查需要數字才能確認不是 root
+USER 10001
 
 EXPOSE 8080
 

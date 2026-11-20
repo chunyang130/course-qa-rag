@@ -33,6 +33,15 @@ def call(method, path, body=None, raw=None):
         return e.code, json.load(e)
 
 
+def wait_ready():
+    for _ in range(50):   # 等伺服器啟動
+        try:
+            urllib.request.urlopen(BASE + "/health", timeout=1)
+            return
+        except (urllib.error.URLError, ConnectionError):
+            time.sleep(0.1)
+
+
 with tempfile.TemporaryDirectory() as d:
     port = free_port()
     BASE = f"http://127.0.0.1:{port}"
@@ -40,12 +49,7 @@ with tempfile.TemporaryDirectory() as d:
                              "--db", os.path.join(d, "qa.db"), "--mock", os.path.join(HERE, "eval", "mock_responses.json")],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
-        for _ in range(50):   # 等伺服器啟動
-            try:
-                urllib.request.urlopen(BASE + "/health", timeout=1)
-                break
-            except (urllib.error.URLError, ConnectionError):
-                time.sleep(0.1)
+        wait_ready()
 
         code, r = call("GET", "/health")
         check("GET /health → 200，載入 26 個段落", code == 200 and r["chunks"] == 26, r)
@@ -82,6 +86,26 @@ with tempfile.TemporaryDirectory() as d:
         top = r["最常被問的問題"][0]
         check("最常被問的問題：多益衝刺班（2 次）", top["問題"].startswith("多益") and top["次數"] == 2, top)
         check("拒答的問題清單：日文課", [x["問題"] for x in r["拒答的問題（知識庫可能要補資料）"]] == ["有沒有日文課？"])
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+    # 第二部分：模擬容器／Cloud Run 的啟動方式——設定全部用環境變數，沒有 API 金鑰
+    port = free_port()
+    BASE = f"http://127.0.0.1:{port}"
+    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+    env.update(PORT=str(port), HOST="127.0.0.1", DB_PATH=os.path.join(d, "cloud.db"), ASK_DAILY_LIMIT="2")
+    proc = subprocess.Popen([sys.executable, os.path.join(HERE, "api.py"), "--mock-if-no-key"],
+                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        wait_ready()
+        code, r = call("GET", "/health")
+        check("環境變數 PORT 生效；沒有金鑰自動改用示範模式；每日上限 2 題",
+              code == 200 and r["mode"] == "mock" and r["daily_limit"] == 2, r)
+        codes = [call("POST", "/ask", {"question": "多益衝刺班一期多少錢？"})[0] for _ in range(3)]
+        check("每日上限：前 2 題 200，第 3 題 429", codes == [200, 200, 429], codes)
+        code, r = call("GET", "/search?" + urllib.parse.urlencode({"q": "退費"}))
+        check("達到上限後 /search 仍可使用（不呼叫模型、不花錢）", code == 200 and r["results"], r)
     finally:
         proc.terminate()
         proc.wait(timeout=5)

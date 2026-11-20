@@ -7,6 +7,10 @@
   python api.py --mock eval/mock_responses.json      # 免費示範，不呼叫 Claude
   python api.py                                      # 實際呼叫 Claude（需 ANTHROPIC_API_KEY）
 
+容器與雲端（Docker／Cloud Run）用環境變數設定，參數沒指定時才讀：
+  PORT、HOST、DB_PATH      監聽的埠號、位址、問答紀錄資料庫位置
+  ASK_DAILY_LIMIT          /ask 每天最多幾題（0 = 不限制），公開網址避免被大量呼叫、產生 API 費用
+
 端點：
   GET  /health                健康檢查
   GET  /search?q=退費&k=4      只做檢索，回傳相關段落（不呼叫模型）
@@ -58,7 +62,8 @@ STATS_SQL = {
 
 
 class App:
-    def __init__(self, db_path, model, api_key, mock):
+    def __init__(self, db_path, model, api_key, mock, daily_limit=0):
+        self.daily_limit = daily_limit
         self.chunks = rag.load_chunks()
         self.index = rag.BM25([c["text"] for c in self.chunks])
         self.model, self.api_key, self.mock = model, api_key, mock
@@ -69,6 +74,10 @@ class App:
         if mock:
             qs = json.load(open(os.path.join(HERE, "eval", "questions.json"), encoding="utf-8"))
             self.mock_by_q = {q["question"]: mock.get(q["id"]) for q in qs}
+
+    def asked_today(self):
+        with sqlite3.connect(self.db_path) as con:
+            return con.execute("SELECT COUNT(*) FROM qa_log WHERE date(asked_at) = date('now', 'localtime')").fetchone()[0]
 
     def ask(self, question):
         t0 = time.time()
@@ -129,7 +138,9 @@ def make_handler(app):
             url = urllib.parse.urlparse(self.path)
             qs = urllib.parse.parse_qs(url.query)
             if url.path == "/health":
-                return self.send_json(200, {"status": "ok", "chunks": len(app.chunks), "mode": "mock" if app.mock else app.model})
+                return self.send_json(200, {"status": "ok", "chunks": len(app.chunks),
+                                            "mode": "mock" if app.mock else app.model,
+                                            "daily_limit": app.daily_limit or None})
             if url.path == "/search":
                 q = (qs.get("q") or [""])[0].strip()
                 if not q:
@@ -160,6 +171,8 @@ def make_handler(app):
                 return self.send_json(400, {"error": "缺少 question"})
             if len(q) > MAX_QUESTION:
                 return self.send_json(400, {"error": f"問題太長，上限 {MAX_QUESTION} 字"})
+            if app.daily_limit and app.asked_today() >= app.daily_limit:
+                return self.send_json(429, {"error": f"今天的問答次數已達上限（{app.daily_limit} 題），請明天再試；/search 不受限制"})
             try:
                 return self.send_json(200, app.ask(q))
             except SystemExit as e:   # rag.py 在 API 錯誤時以 SystemExit 回報
@@ -170,17 +183,25 @@ def make_handler(app):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8000)
-    ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--db", default=os.path.join("output", "qa_log.db"))
+    env = os.environ.get
+    ap.add_argument("--port", type=int, default=int(env("PORT", "8000")))
+    ap.add_argument("--host", default=env("HOST", "127.0.0.1"))
+    ap.add_argument("--db", default=env("DB_PATH", os.path.join("output", "qa_log.db")))
     ap.add_argument("--model", default=rag.DEFAULT_MODEL)
     ap.add_argument("--mock", help="用預先錄好的模型回覆（免費示範）")
+    ap.add_argument("--mock-if-no-key", action="store_true",
+                    help="沒有 ANTHROPIC_API_KEY 時自動改用示範模式（容器預設，方便免費試跑）")
+    ap.add_argument("--daily-limit", type=int, default=int(env("ASK_DAILY_LIMIT", "0")),
+                    help="/ask 每天最多幾題，0 = 不限制")
     a = ap.parse_args()
+    key = env("ANTHROPIC_API_KEY")
+    if not a.mock and not key and a.mock_if_no_key:
+        a.mock = os.path.join(HERE, "eval", "mock_responses.json")
+        print("未設定 ANTHROPIC_API_KEY，改用示範模式", flush=True)
     mock = json.load(open(a.mock, encoding="utf-8")) if a.mock else None
-    key = os.environ.get("ANTHROPIC_API_KEY")
     if not mock and not key:
         raise SystemExit("找不到 ANTHROPIC_API_KEY。免費示範請加 --mock eval/mock_responses.json")
-    app = App(a.db, a.model, key, mock)
+    app = App(a.db, a.model, key, mock, a.daily_limit)
     server = ThreadingHTTPServer((a.host, a.port), make_handler(app))
     print(f"課程問答 API 已啟動：http://{a.host}:{a.port}（{'示範模式' if mock else a.model}）", flush=True)
     try:

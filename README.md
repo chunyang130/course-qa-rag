@@ -93,7 +93,24 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -ContentType "appl
 
 **輸入檢查**：缺少問題、問題超過 300 字、不是 JSON 都回 400；`/ask` 用 GET 回 405；不存在的路徑回 404；模型服務錯誤回 502。
 
-`test_api.py` 以示範模式實際啟動伺服器、送出 HTTP 請求，檢查回應、錯誤碼與資料庫紀錄（15 項）。
+`test_api.py` 以示範模式實際啟動伺服器、送出 HTTP 請求，檢查回應、錯誤碼與資料庫紀錄，並模擬容器的啟動方式（環境變數設定、沒有金鑰時的示範模式、每日上限），共 18 項。
+
+## 容器化與雲端部署（Docker＋Google Cloud Run）
+
+API 可以直接包成容器部署到雲端，得到公開的 HTTPS 網址：
+
+```bash
+docker build -t course-qa-rag .
+docker run -p 8080:8080 course-qa-rag                                   # 沒有金鑰 → 示範模式
+docker run -p 8080:8080 -e ANTHROPIC_API_KEY=... course-qa-rag          # 實際呼叫 Claude
+```
+
+- **設定都用環境變數**（`PORT`、`DB_PATH`、`ASK_DAILY_LIMIT`），同一個映像檔在本機、CI、雲端都能跑
+- **金鑰放 Secret Manager**，不進程式碼、映像檔或 GitHub
+- **費用控制**：最多 1 台、閒置縮到 0 台；`/ask` 每天上限 50 題，超過回 429，`/search` 不受影響
+- **自動測試**：GitHub Actions 每次推送都會建置映像檔、啟動容器、實際送出請求（含每日上限）
+
+完整步驟（全部在瀏覽器的 Cloud Shell 完成）：[docs/deploy-cloud-run.md](docs/deploy-cloud-run.md)
 
 ## 執行方式
 
@@ -117,7 +134,9 @@ python rag.py ask "開課後兩週想退費可以退多少？"
 | --- | --- |
 | `rag.py` | 切段、BM25 檢索、呼叫 Claude、引用驗證、評估 |
 | `api.py` | HTTP API 與問答紀錄（SQLite） |
-| `test_api.py` | API 的自動測試（15 項） |
+| `test_api.py` | API 的自動測試（18 項） |
+| `Dockerfile` | 容器映像檔 |
+| `docs/deploy-cloud-run.md` | 部署到 Google Cloud Run 的步驟 |
 | `knowledge_base/` | 8 份虛構的補習班文件（課程、價目、退費、上課方式、程度檢測、獎學金、分校、常見問題） |
 | `eval/questions.json` | 17 題評估題組，含預期段落與關鍵字 |
 | `eval/mock_responses.json` | 免費示範用的模型回覆（q01 故意寫錯金額，示範數字檢查與重試） |

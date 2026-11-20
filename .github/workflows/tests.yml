@@ -29,6 +29,30 @@ jobs:
           PY
       - name: HTTP API 測試（示範模式）
         run: python test_api.py
+      - name: 知識庫管線測試
+        run: python test_pipeline.py
+
+  kb-pipeline:
+    # 知識庫更新檢查：資料檢查 → 和上一版比較 → 評估閘門；報告顯示在這次執行的摘要頁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 取出上一版，用來比較變更
+        run: |
+          mkdir -p ../baseline
+          if git rev-parse -q --verify HEAD^ > /dev/null; then git archive HEAD^ | tar -x -C ../baseline; fi
+      - name: 資料檢查與評估閘門
+        env:
+          PRICE_CONFIRMED: ${{ contains(github.event.head_commit.message, '確認價格') }}
+        run: |
+          args="--baseline ../baseline"
+          if [ "$PRICE_CONFIRMED" = "true" ]; then args="$args --price-confirmed"; fi
+          python pipeline.py check $args
 
   docker:
     # 建置容器映像檔，實際啟動容器並送出 HTTP 請求，確認可以部署
@@ -57,3 +81,38 @@ jobs:
       - name: 容器紀錄
         if: always()
         run: docker logs qa
+
+  deploy:
+    # 上面三項都通過、而且是推送到 main，才自動部署到 Cloud Run。
+    # 用 Workload Identity Federation 登入 Google Cloud：GitHub 不存放任何金鑰。
+    # 還沒設定（repo 沒有 GCP_WIF_PROVIDER 變數）時自動略過。
+    needs: [test, kb-pipeline, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.GCP_WIF_PROVIDER != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      REGION: asia-east1
+      SERVICE: course-qa-rag
+      IMAGE: asia-east1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/cloud-run-source-deploy/course-qa-rag:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: 建置並上傳映像檔
+        run: |
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+      - name: 部署（沿用原本的金鑰、每日上限等設定）
+        run: gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --quiet
+      - name: 部署後檢查
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" --format 'value(status.url)')
+          curl -sf "$URL/health"
+          curl -sf "$URL/" | grep -q '課程問答'
+          echo "### 🚀 已部署：$URL" >> "$GITHUB_STEP_SUMMARY"

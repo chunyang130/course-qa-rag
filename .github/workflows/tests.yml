@@ -45,6 +45,7 @@ jobs:
         run: |
           set -e
           curl -sf localhost:8080/health | tee /dev/stderr | grep -q '"mode": "mock"'
+          curl -sf localhost:8080/ | grep -q '課程問答'
           curl -sf -X POST localhost:8080/ask -H 'Content-Type: application/json' \
             -d '{"question": "多益衝刺班一期多少錢？"}' | tee /dev/stderr | grep -q '18,000'
           curl -sf -X POST localhost:8080/ask -H 'Content-Type: application/json' -d '{"question": "有沒有日文課？"}' > /dev/null

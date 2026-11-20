@@ -29,3 +29,30 @@ jobs:
           PY
       - name: HTTP API 測試（示範模式）
         run: python test_api.py
+
+  docker:
+    # 建置容器映像檔，實際啟動容器並送出 HTTP 請求，確認可以部署
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 建置映像檔
+        run: docker build -t course-qa-rag .
+      - name: 啟動容器（沒有金鑰 → 示範模式；每日上限 2 題）
+        run: |
+          docker run -d --name qa -p 8080:8080 -e ASK_DAILY_LIMIT=2 course-qa-rag
+          for i in $(seq 1 30); do curl -sf localhost:8080/health && break; sleep 1; done
+      - name: 呼叫容器內的 API
+        run: |
+          set -e
+          curl -sf localhost:8080/health | tee /dev/stderr | grep -q '"mode": "mock"'
+          curl -sf -X POST localhost:8080/ask -H 'Content-Type: application/json' \
+            -d '{"question": "多益衝刺班一期多少錢？"}' | tee /dev/stderr | grep -q '18,000'
+          curl -sf -X POST localhost:8080/ask -H 'Content-Type: application/json' -d '{"question": "有沒有日文課？"}' > /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8080/ask \
+            -H 'Content-Type: application/json' -d '{"question": "多益衝刺班一期多少錢？"}')
+          echo "第 3 題回應碼：$code"; test "$code" = 429
+          curl -sf 'localhost:8080/search?q=%E9%80%80%E8%B2%BB' > /dev/null
+          echo "容器測試通過"
+      - name: 容器紀錄
+        if: always()
+        run: docker logs qa

@@ -13,6 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY rag.py api.py ./
 COPY knowledge_base/ knowledge_base/
+COPY web/ web/
 COPY eval/questions.json eval/mock_responses.json eval/
 
 # 不用 root 執行，降低被入侵時的影響範圍

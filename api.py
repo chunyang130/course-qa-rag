@@ -12,7 +12,9 @@
   ASK_DAILY_LIMIT          /ask 每天最多幾題（0 = 不限制），公開網址避免被大量呼叫、產生 API 費用
 
 端點：
+  GET  /                      問答網頁（輸入問題、看答案與引用）
   GET  /health                健康檢查
+  GET  /examples              網頁上的範例問題
   GET  /search?q=退費&k=4      只做檢索，回傳相關段落（不呼叫模型）
   POST /ask   {"question": "..."}   檢索＋生成＋驗證，回傳答案與引用
   GET  /stats                 用 SQL 統計問答紀錄：題數、拒答率、驗證問題、最常被問的問題
@@ -24,6 +26,9 @@ import rag
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MAX_QUESTION = 300
+WEB_PAGE = os.path.join(HERE, "web", "index.html")
+# 網頁上的範例問題：取自評估題組，最後一題是知識庫沒有的內容，用來示範拒答
+EXAMPLE_IDS = ["q02", "q06", "q12", "q14", "q01", "q15"]
 
 LOG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS qa_log (
@@ -71,8 +76,10 @@ class App:
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         with sqlite3.connect(db_path) as con:
             con.executescript(LOG_SCHEMA)
+        qs = json.load(open(os.path.join(HERE, "eval", "questions.json"), encoding="utf-8"))
+        by_id = {q["id"]: q["question"] for q in qs}
+        self.examples = [by_id[i] for i in EXAMPLE_IDS if i in by_id]
         if mock:
-            qs = json.load(open(os.path.join(HERE, "eval", "questions.json"), encoding="utf-8"))
             self.mock_by_q = {q["question"]: mock.get(q["id"]) for q in qs}
 
     def asked_today(self):
@@ -137,6 +144,15 @@ def make_handler(app):
         def do_GET(self):
             url = urllib.parse.urlparse(self.path)
             qs = urllib.parse.parse_qs(url.query)
+            if url.path in ("/", "/index.html"):
+                body = open(WEB_PAGE, "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                return self.wfile.write(body)
+            if url.path == "/examples":
+                return self.send_json(200, {"examples": app.examples})
             if url.path == "/health":
                 return self.send_json(200, {"status": "ok", "chunks": len(app.chunks),
                                             "mode": "mock" if app.mock else app.model,

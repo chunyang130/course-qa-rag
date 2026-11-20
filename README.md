@@ -49,6 +49,13 @@ v2 在檢索前加了同義詞表（例如 錯過→缺課、暫停→保留學�
 
 **限制**：同義詞表是看到 q14 答錯後才加的，14/14 有針對這組題目修正的成分。要確認改進是否普遍有效，下一步應該用一組沒看過的新題目再評估一次。
 
+## 線上示範
+
+**https://course-qa-rag-799013895800.asia-east1.run.app**（部署在 Google Cloud Run）
+
+打開網址就是問答網頁：輸入問題，下方顯示答案、引用原文與檢索到的段落；知識庫沒有的內容會顯示「資料中找不到」。
+目前為示範模式，只能回答頁面上的範例題（事先錄好的模型回覆）；接上 Claude 後可回答知識庫範圍內的任何問題。
+
 ## HTTP API：讓其他系統直接使用
 
 `api.py` 把問答包成 HTTP 服務，每次問答都記錄到 SQLite，再用 SQL 分析使用狀況。只用 Python 內建的 `http.server` 與 `sqlite3`。
@@ -60,7 +67,9 @@ python api.py                                     # 實際呼叫 Claude（需 AN
 
 | 端點 | 用途 |
 | --- | --- |
+| `GET /` | 問答網頁 |
 | `GET /health` | 健康檢查 |
+| `GET /examples` | 網頁上的範例問題 |
 | `GET /search?q=退費&k=4` | 只做檢索，回傳相關段落（不呼叫模型、不花錢） |
 | `POST /ask` | 送出 `{"question": "..."}`，回傳答案、引用段落、驗證結果與耗時 |
 | `GET /stats` | 用 SQL 統計問答紀錄 |
@@ -93,7 +102,7 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/ask -ContentType "appl
 
 **輸入檢查**：缺少問題、問題超過 300 字、不是 JSON 都回 400；`/ask` 用 GET 回 405；不存在的路徑回 404；模型服務錯誤回 502。
 
-`test_api.py` 以示範模式實際啟動伺服器、送出 HTTP 請求，檢查回應、錯誤碼與資料庫紀錄，並模擬容器的啟動方式（環境變數設定、沒有金鑰時的示範模式、每日上限），共 18 項。
+`test_api.py` 以示範模式實際啟動伺服器、送出 HTTP 請求，檢查回應、錯誤碼、資料庫紀錄、網頁與範例題，並模擬容器的啟動方式（環境變數設定、沒有金鑰時的示範模式、每日上限），共 20 項。
 
 ## 容器化與雲端部署（Docker＋Google Cloud Run）
 
@@ -134,7 +143,8 @@ python rag.py ask "開課後兩週想退費可以退多少？"
 | --- | --- |
 | `rag.py` | 切段、BM25 檢索、呼叫 Claude、引用驗證、評估 |
 | `api.py` | HTTP API 與問答紀錄（SQLite） |
-| `test_api.py` | API 的自動測試（18 項） |
+| `web/index.html` | 問答網頁（不需要任何前端框架） |
+| `test_api.py` | API 的自動測試（20 項） |
 | `Dockerfile` | 容器映像檔 |
 | `docs/deploy-cloud-run.md` | 部署到 Google Cloud Run 的步驟 |
 | `knowledge_base/` | 8 份虛構的補習班文件（課程、價目、退費、上課方式、程度檢測、獎學金、分校、常見問題） |

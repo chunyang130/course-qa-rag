@@ -54,6 +54,14 @@ with tempfile.TemporaryDirectory() as d:
         code, r = call("GET", "/health")
         check("GET /health → 200，載入 26 個段落", code == 200 and r["chunks"] == 26, r)
 
+        with urllib.request.urlopen(BASE + "/", timeout=10) as resp:
+            page = resp.read().decode("utf-8")
+            ctype = resp.headers.get("Content-Type", "")
+        check("GET / → 問答網頁（HTML，含輸入框）", "text/html" in ctype and 'id="form"' in page and "課程問答" in page, ctype)
+        code, r = call("GET", "/examples")
+        check("GET /examples：6 個範例問題，含拒答示範（日文課）",
+              code == 200 and len(r["examples"]) == 6 and "有沒有日文課？" in r["examples"], r)
+
         code, r = call("GET", "/search?" + urllib.parse.urlencode({"q": "錯過一堂課怎麼補？", "k": 2}))
         check("GET /search：同義詞擴充找到 class_modes#1", code == 200 and r["results"][0]["chunk_id"] == "class_modes#1", r)
 

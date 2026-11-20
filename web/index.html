@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>課程問答 RAG 示範</title>
+<style>
+  :root { --navy:#1b3a5c; --blue:#2a6f97; --line:#e3e6ea; --muted:#6d747d; --ok:#1f7a4d; --warn:#a15c00; --bg:#f6f8fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif; color:#222; background:var(--bg); line-height:1.6; }
+  main { max-width:760px; margin:0 auto; padding:28px 18px 60px; }
+  h1 { color:var(--navy); font-size:1.6rem; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 18px; font-size:.95rem; }
+  .mode { display:inline-block; font-size:.8rem; padding:2px 10px; border-radius:99px; background:#e7f1fb; color:var(--blue); margin-left:6px; vertical-align:middle; }
+  .notice { background:#fff8e6; border:1px solid #f0d9a8; color:#6b4b00; padding:10px 14px; border-radius:8px; font-size:.9rem; margin-bottom:14px; }
+  form { display:flex; gap:8px; }
+  input { flex:1; font-size:1rem; padding:12px 14px; border:1px solid #c9d1da; border-radius:8px; background:#fff; }
+  input:focus { outline:2px solid var(--blue); border-color:transparent; }
+  button { font-size:1rem; padding:0 20px; border:0; border-radius:8px; background:var(--navy); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .examples { margin:12px 0 22px; display:flex; flex-wrap:wrap; gap:8px; }
+  .examples span { color:var(--muted); font-size:.85rem; align-self:center; }
+  .chip { background:#fff; border:1px solid var(--line); color:var(--navy); border-radius:99px; padding:4px 12px; font-size:.85rem; cursor:pointer; }
+  .chip:hover { border-color:var(--blue); }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px 20px; }
+  .badge { display:inline-block; font-size:.8rem; padding:2px 10px; border-radius:99px; margin-bottom:8px; }
+  .badge.ok { background:#e5f4e4; color:var(--ok); } .badge.no { background:#f9eeda; color:var(--warn); }
+  .answer { font-size:1.08rem; margin:0 0 14px; white-space:pre-wrap; }
+  h2 { font-size:.95rem; color:var(--navy); margin:16px 0 6px; }
+  .cite { border-left:3px solid var(--blue); padding:4px 10px; margin:6px 0; background:#f7fafc; font-size:.92rem; }
+  .cite code, .meta code { font-size:.8rem; color:var(--muted); }
+  .meta { color:var(--muted); font-size:.85rem; margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
+  .error { color:#b42318; }
+  footer { color:var(--muted); font-size:.82rem; margin-top:28px; }
+  footer a { color:var(--blue); }
+</style>
+</head>
+<body>
+<main>
+  <h1>課程問答 RAG 示範 <span class="mode" id="mode">連線中…</span></h1>
+  <p class="sub">AI 只依補習班文件回答，每個答案都附上引用原文；資料裡沒有的內容會直接說找不到，不會猜。</p>
+  <div class="notice" id="notice" hidden></div>
+
+  <form id="form">
+    <input id="q" maxlength="300" placeholder="輸入問題，例如：開課後兩週想退費可以退多少？" autocomplete="off" required>
+    <button id="btn">送出</button>
+  </form>
+  <div class="examples" id="examples"><span>試試看：</span></div>
+
+  <div class="card" id="result" hidden></div>
+
+  <footer>
+    知識庫為虛構的補習班資料（課程、價目、退費、獎學金等 8 份文件）。
+    檢索：BM25；生成：Claude；程式會再驗證引用與數字。
+    原始碼：<a href="https://github.com/chunyang130/course-qa-rag" target="_blank" rel="noopener">github.com/chunyang130/course-qa-rag</a>
+  </footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+fetch("health").then(r => r.json()).then(h => {
+  const mock = h.mode === "mock";
+  $("mode").textContent = mock ? "示範模式" : "Claude 已連線";
+  if (mock) {
+    $("notice").hidden = false;
+    $("notice").textContent = "目前是示範模式：只能回答下方範例題（事先錄好的模型回覆），其他問題會顯示找不到。";
+  }
+}).catch(() => { $("mode").textContent = "無法連線"; });
+
+fetch("examples").then(r => r.json()).then(d => {
+  for (const q of d.examples) {
+    const b = el("button", "chip", q); b.type = "button";
+    b.onclick = () => { $("q").value = q; ask(q); };
+    $("examples").appendChild(b);
+  }
+});
+
+$("form").onsubmit = e => { e.preventDefault(); ask($("q").value.trim()); };
+
+async function ask(q) {
+  if (!q) return;
+  $("btn").disabled = true; $("btn").textContent = "思考中…";
+  const box = $("result"); box.hidden = false; box.replaceChildren(el("p", "sub", "檢索文件、產生答案、驗證引用中…"));
+  try {
+    const r = await fetch("ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
+    const d = await r.json();
+    box.replaceChildren();
+    if (!r.ok) { box.appendChild(el("p", "error", d.error || ("錯誤 " + r.status))); return; }
+    box.appendChild(el("span", "badge " + (d.answerable ? "ok" : "no"), d.answerable ? "有依據的回答" : "資料中找不到"));
+    box.appendChild(el("p", "answer", d.answer));
+    if (d.citations.length) {
+      box.appendChild(el("h2", null, "引用原文"));
+      for (const c of d.citations) {
+        const div = el("div", "cite", c.quote + " ");
+        div.appendChild(el("code", null, c.chunk_id));
+        box.appendChild(div);
+      }
+    }
+    const meta = el("div", "meta");
+    meta.append("檢索到的段落：");
+    if (!d.retrieved.length) meta.append("沒有相關段落");
+    d.retrieved.forEach((c, i) => { if (i) meta.append("、"); meta.appendChild(el("code", null, c.chunk_id)); });
+    meta.append(`｜耗時 ${d.latency_ms} ms`);
+    if (d.retried) meta.append("｜第一次回答未通過驗證，已自動重答");
+    if (d.validation_errors.length) meta.append("｜驗證問題：" + d.validation_errors.join("；"));
+    box.appendChild(meta);
+  } catch (err) {
+    box.replaceChildren(el("p", "error", "連線失敗，請稍後再試"));
+  } finally {
+    $("btn").disabled = false; $("btn").textContent = "送出";
+  }
+}
+</script>
+</body>
+</html>

@@ -64,6 +64,9 @@ with tempfile.TemporaryDirectory() as d:
 
         code, r = call("GET", "/search?" + urllib.parse.urlencode({"q": "錯過一堂課怎麼補？", "k": 2}))
         check("GET /search：同義詞擴充找到 class_modes#1", code == 200 and r["results"][0]["chunk_id"] == "class_modes#1", r)
+        code, r = call("GET", "/search?" + urllib.parse.urlencode({"q": "週末分校有開嗎？"}))
+        check("GET /search：「週末」對應到週六、週日，找到分校營業時間",
+              code == 200 and {"branches#1", "branches#2"} <= {x["chunk_id"] for x in r["results"]}, r)
 
         code, r = call("POST", "/ask", {"question": "多益衝刺班一期多少錢？"})
         check("POST /ask：回答含正確金額 18,000", code == 200 and r["answerable"] and "18,000" in r["answer"], r)

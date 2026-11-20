@@ -82,11 +82,30 @@ jobs:
         if: always()
         run: docker logs qa
 
+  kubernetes:
+    # 在 kind（用 Docker 模擬的 Kubernetes 叢集）上實際部署並驗證：負載分配、自我修復、零停機更新
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安裝 kind
+        run: |
+          curl -sSLo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind && sudo mv ./kind /usr/local/bin/kind
+          kind version && kubectl version --client
+      - name: 部署與驗證
+        run: bash k8s/test-k8s.sh
+      - name: 失敗時的叢集狀態
+        if: failure()
+        run: |
+          kubectl get all -o wide || true
+          kubectl describe pods -l app=course-qa-rag || true
+          kubectl logs -l app=course-qa-rag --tail=50 || true
+
   deploy:
-    # 上面三項都通過、而且是推送到 main，才自動部署到 Cloud Run。
+    # 上面四項都通過、而且是推送到 main，才自動部署到 Cloud Run。
     # 用 Workload Identity Federation 登入 Google Cloud：GitHub 不存放任何金鑰。
     # 還沒設定（repo 沒有 GCP_WIF_PROVIDER 變數）時自動略過。
-    needs: [test, kb-pipeline, docker]
+    needs: [test, kb-pipeline, docker, kubernetes]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.GCP_WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     permissions:

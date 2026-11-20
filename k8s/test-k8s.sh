@@ -36,9 +36,17 @@ check 'curl -sf "$URL/search?q=%E9%80%80%E8%B2%BB" | grep -q refund' "/search �
 check 'curl -sf -X POST "$URL/ask" -H "Content-Type: application/json" -d "{\"question\": \"多益衝刺班一期多少錢？\"}" | grep -q 18,000' "/ask 回答正確金額"
 
 step "3. 負載分配：Service 把請求分給 2 份"
-hosts=$(for i in $(seq 1 30); do curl -sf "$URL/health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["host"])'; done | sort | uniq -c)
+# Pod 就緒後，Service 的後端名單（EndpointSlice）與網路規則要再過幾秒才更新；先等 2 份都列入，避免測試時好時壞
+for i in $(seq 1 30); do
+  n=$(kubectl get endpointslices -l kubernetes.io/service-name=course-qa-rag \
+      -o jsonpath='{range .items[*].endpoints[?(@.conditions.ready==true)]}{.addresses[0]}{"\n"}{end}' | grep -c . || true)
+  [ "$n" -ge 2 ] && break
+  sleep 1
+done
+echo "Service 後端已就緒：$n 份"
+hosts=$(for i in $(seq 1 60); do curl -sf "$URL/health" | python3 -c 'import json,sys; print(json.load(sys.stdin)["host"])'; sleep 0.05; done | sort | uniq -c)
 echo "$hosts"
-check '[ "$(echo "$hosts" | wc -l)" -ge 2 ]' "30 個請求分配到 2 份"
+check '[ "$(echo "$hosts" | wc -l)" -ge 2 ]' "60 個請求分配到 2 份"
 
 step "4. 自我修復：刪掉一份，Kubernetes 自動補回"
 victim=$(kubectl get pods -l app=course-qa-rag -o jsonpath='{.items[0].metadata.name}')
